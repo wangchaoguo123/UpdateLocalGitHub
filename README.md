@@ -7,7 +7,9 @@
 - 批量检查多个本地 GitHub 仓库是否有新更新
 - 自动拉取更新
 - 将更新历史记录到 CSV 文件
-- 详细的控制台输出和错误提示
+- 详细的控制台输出和日志记录
+- **安全的路径验证**，防止命令注入攻击
+- **超时机制**，防止 Git 命令挂起
 
 ## 快速开始
 
@@ -49,12 +51,12 @@ python update_github_repos.py "../my-repo" "./local-repo"
 ### 控制台输出格式
 
 ```
-====================================
+==================================================
   GitHub 仓库本地更新工具
-====================================
+==================================================
 
 开始检查仓库更新...
-=====================================
+==================================================
 
 [仓库 1/3] D:\repo1
 [检查] 正在检查更新...
@@ -72,11 +74,9 @@ python update_github_repos.py "../my-repo" "./local-repo"
 [错误] 不是 Git 仓库
 [记录] 已记录到 result_20260331.csv
 
-=====================================
+==================================================
 完成！共处理 3 个仓库，成功 2 个，失败 1 个
-=====================================
-
-程序执行成功
+==================================================
 ```
 
 ### CSV 文件结构
@@ -99,11 +99,17 @@ repo2,D:\repo2,2026-03-31 10:30:18,Already up to date.
 repo3,D:\repo3,2026-03-31 10:30:20,error: 不是 Git 仓库
 ```
 
+## 安全特性
+
+- **路径安全验证**：自动规范化路径，防止命令注入
+- **超时机制**：Git 命令设置超时（检查 30 秒，拉取 60 秒），防止挂起
+- **异常日志**：所有异常记录到 Python logging 模块
+
 ## 错误处理
 
 工具采用"跳过错误"策略：
 - 单个仓库失败不会影响其他仓库的处理
-- 错误信息会记录到控制台和 CSV 文件
+- 错误信息会记录到控制台、日志和 CSV 文件
 - 程序会显示成功和失败的统计信息
 
 ### 常见错误
@@ -115,6 +121,31 @@ repo3,D:\repo3,2026-03-31 10:30:20,error: 不是 Git 仓库
 | 不是 Git 仓库 | 目录不是 Git 仓库 | 检查是否包含 .git 目录 |
 | 检查更新失败 | git 命令执行失败 | 检查 Git 是否正确安装和配置 |
 | 拉取更新失败 | git pull 命令失败 | 检查网络连接和仓库权限 |
+
+## API 参考
+
+### src.utils
+
+| 函数 | 说明 | 参数 | 返回值 |
+|------|------|------|--------|
+| validate_repo_path(repo_path) | 验证路径是否为有效的 Git 仓库 | repo_path: 路径字符串 | True/False |
+| extract_repo_name(repo_path) | 从完整路径提取仓库名称 | repo_path: 路径字符串 | 仓库名字符串 |
+| format_update_message(message) | 将多行消息合并为单行 | message: 原始消息 | 格式化后的字符串 |
+
+### src.git_ops
+
+| 函数 | 说明 | 参数 | 返回值 |
+|------|------|------|--------|
+| validate_path_security(repo_path) | 验证路径安全性 | repo_path: 路径字符串 | 安全路径或 None |
+| check_repo_update(repo_path) | 检查仓库是否有更新 | repo_path: 路径字符串 | True/False/None |
+| pull_repo(repo_path) | 执行 git pull 更新仓库 | repo_path: 路径字符串 | 更新信息或 None |
+
+### src.csv_writer
+
+| 函数 | 说明 | 参数 | 返回值 |
+|------|------|------|--------|
+| get_current_time() | 获取当前时间字符串 | 无 | 时间字符串 |
+| log_update_result(repo_name, repo_path, update_info, csv_path) | 记录更新结果到 CSV | 4 个字符串参数 | True/False |
 
 ## 开发和测试
 
@@ -130,25 +161,28 @@ pytest tests/test_git_ops.py
 pytest tests/test_csv_writer.py
 pytest tests/test_main.py
 pytest tests/test_integration.py
+pytest tests/test_logging.py
 
 # 生成覆盖率报告
-pytest --cov=. --cov-report=html
+pytest --cov=src --cov-report=term-missing
+pytest --cov=src --cov-report=html  # HTML 报告
 ```
 
-### 测试覆盖率目标
+### 测试覆盖率
 
-≥ 80%
+- 当前覆盖率：**96%**
+- 测试用例数：**45**
 
 ## 项目结构
 
 ```
 UpdateLocalGitHub/
-├── update_github_repos.py     # 主程序
+├── update_github_repos.py     # 主程序入口
 ├── update_repos.bat            # 批处理文件（Windows）
 ├── src/
 │   ├── __init__.py             # 包初始化
-│   ├── utils.py                # 工具函数模块
-│   ├── git_ops.py              # Git 操作模块
+│   ├── utils.py                # 工具函数模块（路径验证、名称提取）
+│   ├── git_ops.py              # Git 操作模块（检查更新、拉取）
 │   └── csv_writer.py           # CSV 写入模块
 ├── tests/
 │   ├── conftest.py             # 测试配置
@@ -156,10 +190,18 @@ UpdateLocalGitHub/
 │   ├── test_git_ops.py         # Git 操作测试
 │   ├── test_csv_writer.py      # CSV 写入测试
 │   ├── test_main.py            # 主函数测试
-│   └── test_integration.py     # 集成测试
+│   ├── test_integration.py     # 集成测试
+│   └── test_logging.py         # 日志和异常处理测试
 ├── requirements.txt            # 依赖列表
 └── README.md                   # 本文件
 ```
+
+## 代码规范
+
+- 所有函数包含中文文档字符串（Docstring）
+- 错误处理使用 Python logging 模块
+- 中英文之间添加空格
+- 变量名、函数名使用英文
 
 ## 许可证
 
@@ -171,6 +213,7 @@ MIT
 - subprocess（内置模块）
 - csv（内置模块）
 - datetime（内置模块）
+- logging（内置模块）
 - pytest >= 7.0.0
 - pytest-cov >= 4.0.0
 - pytest-mock >= 3.10.0
