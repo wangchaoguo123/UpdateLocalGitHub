@@ -40,11 +40,11 @@ def validate_repo_path(repo_path):
 
 
 def extract_repo_name(repo_path):
-    """
+    r"""
     从完整路径提取仓库名称
 
     示例：
-    - 'D:\\code\\repo1' -> 'repo1'
+    - 'D:\code\repo1' -> 'repo1'
     - '/home/user/my-repo' -> 'my-repo'
 
     参数:
