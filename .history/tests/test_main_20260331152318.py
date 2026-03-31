@@ -14,7 +14,7 @@ def test_main_no_args(capsys):
 
 
 def test_main_path_not_exist(tmp_path, capsys):
-    nonexistent = tmp_path + "/" + "nonexistent"
+    nonexistent = tmp_path / "nonexistent"
     with patch.object(update_github_repos, 'log_update_result'):
         result = update_github_repos.main([str(nonexistent)])
         captured = capsys.readouterr()
@@ -23,9 +23,9 @@ def test_main_path_not_exist(tmp_path, capsys):
 
 
 def test_main_integration_mock(tmp_path, capsys, monkeypatch):
-    repo_path = tmp_path + "/" + "test-repo"
+    repo_path = tmp_path / "test-repo"
     repo_path.mkdir()
-    (repo_path + "/" + ".git").mkdir()
+    (repo_path / ".git").mkdir()
 
     mock_count = {'count': 0}
 
