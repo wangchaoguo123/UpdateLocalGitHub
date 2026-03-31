@@ -50,8 +50,8 @@ def log_update_result(repo_name, repo_path, update_info, csv_path):
         # 获取当前时间戳
         timestamp = get_current_time()
 
-        # 以追加模式打开文件，使用 UTF-8 编码
-        with open(csv_path, 'a', newline='', encoding='utf-8') as f:
+        # 以追加模式打开文件，使用带 BOM 的 UTF-8 编码，确保 Excel 能正确识别中文
+        with open(csv_path, 'a', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f)
 
             # 如果文件不存在，先写入表头

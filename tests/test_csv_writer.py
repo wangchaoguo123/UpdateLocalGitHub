@@ -13,7 +13,7 @@ def test_log_update_result_new_file(tmp_path):
 
     assert csv_path.exists()
 
-    with open(csv_path, 'r', encoding='utf-8') as f:
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
         reader = csv.reader(f)
         rows = list(reader)
         assert len(rows) == 2
@@ -29,7 +29,7 @@ def test_log_update_result_append(tmp_path):
     log_update_result("repo1", r"D:\repo1", "success", str(csv_path))
     log_update_result("repo2", r"D:\repo2", "error", str(csv_path))
 
-    with open(csv_path, 'r', encoding='utf-8') as f:
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
         reader = csv.reader(f)
         rows = list(reader)
         assert len(rows) == 3
@@ -42,7 +42,7 @@ def test_log_update_result_timestamp_format(tmp_path):
 
     log_update_result("repo1", r"D:\repo1", "test", str(csv_path))
 
-    with open(csv_path, 'r', encoding='utf-8') as f:
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
         reader = csv.reader(f)
         rows = list(reader)
         timestamp = rows[1][2]
@@ -54,7 +54,7 @@ def test_log_update_result_unicode(tmp_path):
 
     log_update_result("测试仓库", r"D:\测试仓库", "更新成功", str(csv_path))
 
-    with open(csv_path, 'r', encoding='utf-8') as f:
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
         reader = csv.reader(f)
         rows = list(reader)
         assert rows[1][0] == "测试仓库"
