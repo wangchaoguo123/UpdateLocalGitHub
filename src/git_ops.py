@@ -12,6 +12,47 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def analyze_git_error(result):
+    """
+    分析 Git 命令错误信息，提供更详细的错误描述
+
+    参数:
+        result: subprocess.CompletedProcess 对象
+
+    返回值:
+        错误描述字符串
+    """
+    error_parts = []
+    
+    # 检查 stderr 输出
+    stderr = result.stderr.strip().lower() if result.stderr else ""
+    stdout = result.stdout.strip().lower() if result.stdout else ""
+    
+    # 分析常见错误模式
+    if 'not a git repository' in stderr or 'not a git repository' in stdout:
+        error_parts.append("不是 Git 仓库")
+    elif 'permission denied' in stderr:
+        error_parts.append("权限被拒绝")
+    elif 'connection refused' in stderr or 'could not resolve host' in stderr:
+        error_parts.append("无法连接到远程仓库")
+    elif 'local changes' in stderr or 'uncommitted changes' in stderr:
+        error_parts.append("本地有未提交的更改")
+    elif 'conflict' in stderr or 'merge conflict' in stderr:
+        error_parts.append("存在合并冲突")
+    elif 'fatal:' in stderr:
+        error_parts.append(f"Git 错误: {result.stderr.strip()}")
+    elif stderr:
+        error_parts.append(f"错误: {result.stderr.strip()}")
+    elif stdout:
+        # stdout 也可能包含错误信息
+        error_parts.append(f"输出: {result.stdout.strip()}")
+    
+    if not error_parts:
+        error_parts.append("未知错误")
+    
+    return "; ".join(error_parts)
+
+
 def validate_path_security(repo_path):
     """
     验证仓库路径的安全性
@@ -65,7 +106,9 @@ def check_repo_update(repo_path):
 
         # 检查返回码
         if result.returncode != 0:
-            logger.warning(f"git pull --dry-run 返回错误码: {result.returncode}")
+            # 分析错误原因
+            error_info = analyze_git_error(result)
+            logger.warning(f"git pull --dry-run 返回错误码 {result.returncode}: {error_info}")
             return None
 
         # 解析输出判断更新状态
@@ -126,7 +169,9 @@ def pull_repo(repo_path):
             formatted_output = output.replace('\n', ' ').replace('\r', '')
             return formatted_output
         else:
-            logger.warning(f"git pull 返回错误码: {result.returncode}")
+            # 分析错误原因
+            error_info = analyze_git_error(result)
+            logger.warning(f"git pull 返回错误码 {result.returncode}: {error_info}")
             return None
 
     except subprocess.TimeoutExpired:
