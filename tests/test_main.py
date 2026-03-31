@@ -14,27 +14,29 @@ def test_main_no_args(capsys):
 
 
 def test_main_path_not_exist(tmp_path, capsys):
-    nonexistent = tmp_path + "/" + "nonexistent"
+    nonexistent = tmp_path / "nonexistent"
     with patch.object(update_github_repos, 'log_update_result'):
         result = update_github_repos.main([str(nonexistent)])
         captured = capsys.readouterr()
         assert result == 0
-        assert "error" in captured.out.lower()
+        assert "错误" in captured.out or "不存在" in captured.out
 
 
 def test_main_integration_mock(tmp_path, capsys, monkeypatch):
-    repo_path = tmp_path + "/" + "test-repo"
+    repo_path = tmp_path / "test-repo"
     repo_path.mkdir()
-    (repo_path + "/" + ".git").mkdir()
+    (repo_path / ".git").mkdir()
 
     mock_count = {'count': 0}
 
-    def mock_run(cmd, cwd, capture_output, text):
+    def mock_run(*args, **kwargs):
         mock_count['count'] += 1
-        if '--dry-run' in cmd:
-            return subprocess.CompletedProcess(cmd=cmd, returncode=0, stdout="Already up to date.", stderr="")
-        else:
-            return subprocess.CompletedProcess(cmd=cmd, returncode=0, stdout="Already up to date.", stderr="")
+        return subprocess.CompletedProcess(
+            args=args[0] if args else ['git'],
+            returncode=0,
+            stdout="Already up to date.",
+            stderr=""
+        )
 
     monkeypatch.setattr(subprocess, 'run', mock_run)
 

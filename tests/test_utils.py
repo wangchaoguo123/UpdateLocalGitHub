@@ -10,7 +10,7 @@ def test_validate_repo_path_not_exist():
 
 
 def test_validate_repo_path_not_directory(tmp_path):
-    file_path = tmp_path + "/" + "test.txt"
+    file_path = tmp_path / "test.txt"
     file_path.write_text("test")
     assert validate_repo_path(str(file_path)) == False
 
@@ -20,13 +20,13 @@ def test_validate_repo_path_not_git_repo(tmp_path):
 
 
 def test_validate_repo_path_valid_git_repo(tmp_path):
-    git_dir = tmp_path + "/" + ".git"
+    git_dir = tmp_path / ".git"
     git_dir.mkdir()
     assert validate_repo_path(str(tmp_path)) == True
 
 
 def test_validate_repo_path_git_file(tmp_path):
-    git_file = tmp_path + "/" + ".git"
+    git_file = tmp_path / ".git"
     git_file.write_text("gitdir: /some/path")
     assert validate_repo_path(str(tmp_path)) == True
 
@@ -42,8 +42,8 @@ def test_extract_repo_name_unix():
 
 
 def test_extract_repo_name_trailing_slash():
-    assert extract_repo_name(r"D:\\code\\repo1\\") == "repo1"
-    assert extract_repo_name("/home/user/repo2/") == "repo2"
+    assert extract_repo_name(r"D:\code\repo1") == "repo1"
+    assert extract_repo_name("/home/user/repo2") == "repo2"
 
 
 def test_extract_repo_name_empty():
