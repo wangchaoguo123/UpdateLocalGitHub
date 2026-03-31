@@ -17,6 +17,12 @@ import os
 import logging
 from datetime import datetime
 
+# 设置标准输出编码为 UTF-8，确保中文正确显示
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except:
+    pass
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
