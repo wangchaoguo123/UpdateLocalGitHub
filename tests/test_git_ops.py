@@ -131,4 +131,4 @@ def test_pull_repo_already_up_to_date(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, 'run', mock_run)
 
     result = pull_repo(str(tmp_path))
-    assert "Already up to date" in result
+    assert "已是最新" in result

@@ -256,7 +256,7 @@ def pull_repo(repo_path):
         repo_path: 仓库路径（字符串）
 
     返回值:
-        成功：更新履历字符串（换行符替换为空格）
+        成功：更新履历字符串（简化格式）
         失败：None
     """
     # 验证路径安全性
@@ -276,10 +276,35 @@ def pull_repo(repo_path):
         )
 
         if result.returncode == 0:
-            # 格式化输出，替换换行符为空格
             output = result.stdout.strip()
-            formatted_output = output.replace('\n', ' ').replace('\r', '')
-            return formatted_output
+            
+            # 检查是否已经是最新
+            if 'already up to date' in output.lower():
+                return "已是最新"
+            
+            # 获取最新提交的简短信息
+            log_cmd = ['git', 'log', '-1', '--pretty=format:%h - %s', 'HEAD']
+            log_result = subprocess.run(
+                log_cmd,
+                cwd=safe_path,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if log_result.returncode == 0 and log_result.stdout.strip():
+                # 返回最新提交的简短信息
+                return f"已更新: {log_result.stdout.strip()}"
+            else:
+                # 备用方案：返回简化的输出
+                lines = output.split('\n')
+                if len(lines) > 0:
+                    # 只取第一行有意义的信息
+                    for line in lines:
+                        line = line.strip()
+                        if line and not line.startswith('From'):
+                            return line[:100]  # 限制长度
+                return "已更新"
         else:
             # 分析错误原因
             error_info = analyze_git_error(result)
