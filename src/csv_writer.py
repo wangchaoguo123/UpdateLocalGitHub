@@ -9,11 +9,17 @@ import os
 from datetime import datetime
 import logging
 
+# 尝试导入常量模块，如果失败则使用默认值
+try:
+    from constants import CSVConfig
+    # CSV 表头定义（保持向后兼容）
+    CSV_HEADERS = CSVConfig.HEADERS
+except ImportError:
+    # 如果 constants 模块不存在，使用默认值
+    CSV_HEADERS = ['仓库名称', '本地路径', '更新时间', '更新履历']
+
 # 配置日志
 logger = logging.getLogger(__name__)
-
-# CSV 表头定义
-CSV_HEADERS = ['仓库名称', '本地路径', '更新时间', '更新履历']
 
 
 def get_current_time():

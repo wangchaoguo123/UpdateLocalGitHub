@@ -37,7 +37,7 @@ def analyze_git_error(result):
           'could not resolve host' in stderr or 
           'failed to connect' in stderr or
           'could not connect to server' in stderr or
-          'unable to access' in stderr and 'https' in stderr):
+          ('unable to access' in stderr and 'https' in stderr)):
         error_parts.append("网络连接失败，请检查网络连接或代理设置")
     elif 'local changes' in stderr or 'uncommitted changes' in stderr:
         error_parts.append("本地有未提交的更改")
@@ -61,6 +61,11 @@ def validate_path_security(repo_path):
     """
     验证仓库路径的安全性
 
+    安全检查：
+    1. 路径规范化
+    2. 路径长度限制
+    3. 禁止访问系统目录
+
     参数:
         repo_path: 仓库路径（字符串）
 
@@ -75,7 +80,72 @@ def validate_path_security(repo_path):
         logger.warning(f"路径过长: {safe_path}")
         return None
 
+    # 禁止访问系统目录（只检查根目录，不包括子目录）
+    forbidden_paths = []
+    
+    # Windows 系统目录
+    if os.name == 'nt':
+        system_root = os.environ.get('SystemRoot', 'C:\\Windows').lower()
+        program_files = os.environ.get('ProgramFiles', 'C:\\Program Files').lower()
+        
+        forbidden_paths = [system_root, program_files]
+    
+    # Unix 系统目录
+    else:
+        forbidden_paths = ['/etc', '/bin', '/sbin', '/sys', '/proc']
+    
+    safe_path_lower = safe_path.lower()
+    for forbidden in forbidden_paths:
+        if forbidden:
+            # 只检查是否完全匹配或以目录分隔符结尾，避免禁止子目录
+            if safe_path_lower == forbidden or safe_path_lower.startswith(forbidden + os.sep):
+                logger.warning(f"禁止访问系统目录: {safe_path}")
+                return None
+
     return safe_path
+
+
+def _get_remote_branch(safe_path, current_branch):
+    """
+    获取远程分支名称
+
+    参数:
+        safe_path: 安全的仓库路径
+        current_branch: 当前分支名称
+
+    返回值:
+        远程分支名称，如果找不到返回 None
+    """
+    # 1. 检查上游分支
+    upstream_cmd = ['git', 'rev-parse', '--verify', '@{u}']
+    upstream_result = subprocess.run(
+        upstream_cmd, cwd=safe_path, capture_output=True, text=True, timeout=10
+    )
+    
+    if upstream_result.returncode == 0:
+        return upstream_result.stdout.strip()
+    
+    # 2. 尝试 origin/分支名
+    remote_branch = f'origin/{current_branch}'
+    verify_cmd = ['git', 'rev-parse', '--verify', remote_branch]
+    verify_result = subprocess.run(
+        verify_cmd, cwd=safe_path, capture_output=True, text=True, timeout=10
+    )
+    
+    if verify_result.returncode == 0:
+        return remote_branch
+    
+    # 3. 尝试备用分支
+    for alt_branch in ['origin/master', 'origin/main']:
+        verify_cmd = ['git', 'rev-parse', '--verify', alt_branch]
+        verify_result = subprocess.run(
+            verify_cmd, cwd=safe_path, capture_output=True, text=True, timeout=10
+        )
+        if verify_result.returncode == 0:
+            logger.info(f"使用备用分支: {alt_branch}")
+            return alt_branch
+    
+    return None
 
 
 def check_repo_update(repo_path):
@@ -115,7 +185,7 @@ def check_repo_update(repo_path):
             logger.warning(f"git fetch 返回错误码 {fetch_result.returncode}: {error_info}")
             return None
         
-        logger.debug(f"git fetch 成功")
+        logger.debug(f"git fetch 成功: {safe_path}")
 
         # 步骤2: 获取当前分支名称
         branch_cmd = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
@@ -134,56 +204,15 @@ def check_repo_update(repo_path):
         current_branch = branch_result.stdout.strip()
         logger.debug(f"当前分支: {current_branch}")
         
-        # 步骤3: 检查是否有上游分支
-        upstream_cmd = ['git', 'rev-parse', '--verify', '@{u}']
-        upstream_result = subprocess.run(
-            upstream_cmd,
-            cwd=safe_path,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        # 步骤3: 确定远程分支名称
+        remote_branch = _get_remote_branch(safe_path, current_branch)
+        if remote_branch is None:
+            logger.warning("未找到有效的远程分支")
+            return False
         
-        # 步骤4: 确定远程分支名称
-        if upstream_result.returncode == 0:
-            remote_branch = upstream_result.stdout.strip()
-            logger.debug(f"上游分支: {remote_branch}")
-        else:
-            # 尝试使用 origin/分支名
-            remote_branch = f'origin/{current_branch}'
-            logger.debug(f"无上游分支，尝试使用: {remote_branch}")
-            
-            # 验证远程分支是否存在
-            verify_cmd = ['git', 'rev-parse', '--verify', remote_branch]
-            verify_result = subprocess.run(
-                verify_cmd,
-                cwd=safe_path,
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            
-            if verify_result.returncode != 0:
-                logger.warning(f"远程分支 {remote_branch} 不存在")
-                # 尝试其他常见分支名
-                for alt_branch in ['origin/master', 'origin/main']:
-                    verify_cmd = ['git', 'rev-parse', '--verify', alt_branch]
-                    verify_result = subprocess.run(
-                        verify_cmd,
-                        cwd=safe_path,
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
-                    if verify_result.returncode == 0:
-                        remote_branch = alt_branch
-                        logger.info(f"使用备用分支: {remote_branch}")
-                        break
-                else:
-                    logger.warning("未找到有效的远程分支")
-                    return False
+        logger.debug(f"远程分支: {remote_branch}")
         
-        # 步骤5: 检查本地是否落后于远程
+        # 步骤4: 检查本地是否落后于远程
         # git rev-list HEAD..remote_branch: 显示在 HEAD 中但不在 remote_branch 中的提交（本地落后远程）
         check_cmd = ['git', 'rev-list', '--count', f'HEAD..{remote_branch}']
         check_result = subprocess.run(
@@ -201,7 +230,7 @@ def check_repo_update(repo_path):
         behind_count = int(check_result.stdout.strip())
         logger.debug(f"本地落后远程 {behind_count} 个提交")
         
-        # 步骤6: 检查远程是否落后于本地（可选信息）
+        # 步骤5: 检查远程是否落后于本地（可选信息）
         # git rev-list remote_branch..HEAD: 显示在 remote_branch 中但不在 HEAD 中的提交（本地领先远程）
         ahead_cmd = ['git', 'rev-list', '--count', f'{remote_branch}..HEAD']
         ahead_result = subprocess.run(
@@ -217,7 +246,7 @@ def check_repo_update(repo_path):
             ahead_count = int(ahead_result.stdout.strip())
             logger.debug(f"本地领先远程 {ahead_count} 个提交")
         
-        # 步骤7: 获取远程分支的最新提交信息
+        # 步骤6: 获取远程分支的最新提交信息
         if behind_count > 0:
             # 获取远程最新提交信息
             log_cmd = ['git', 'log', '--oneline', '-n', '3', f'{remote_branch}']

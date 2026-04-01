@@ -17,6 +17,13 @@ import os
 import logging
 from datetime import datetime
 
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # 设置标准输出编码，确保中文正确显示
 # 只在直接运行时重新包装输出，测试时保持原样
 import io
@@ -25,15 +32,8 @@ if __name__ == '__main__':
         # 尝试使用 UTF-8
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-    except:
-        pass
-
-# 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+    except (AttributeError, ValueError, OSError) as e:
+        logger.debug(f"设置编码失败: {e}")
 
 # 将 src 目录添加到模块搜索路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -42,13 +42,25 @@ from utils import validate_repo_path, extract_repo_name
 from git_ops import check_repo_update, pull_repo
 from csv_writer import log_update_result
 
-# 错误消息常量
-ERROR_PATH_NOT_EXIST = "error: 路径不存在"
-ERROR_NOT_DIRECTORY = "error: 路径不是目录"
-ERROR_NOT_GIT_REPO = "error: 不是 Git 仓库"
-ERROR_CHECK_FAILED = "error: 检查更新失败"
-ERROR_PULL_FAILED = "error: 拉取更新失败"
-STATUS_UP_TO_DATE = "Already up to date."
+# 尝试导入常量模块，如果失败则使用默认值
+try:
+    from constants import ErrorMessages, StatusMessages
+    
+    # 错误消息常量（保持向后兼容）
+    ERROR_PATH_NOT_EXIST = ErrorMessages.PATH_NOT_EXIST
+    ERROR_NOT_DIRECTORY = ErrorMessages.NOT_DIRECTORY
+    ERROR_NOT_GIT_REPO = ErrorMessages.NOT_GIT_REPO
+    ERROR_CHECK_FAILED = ErrorMessages.CHECK_FAILED
+    ERROR_PULL_FAILED = ErrorMessages.PULL_FAILED
+    STATUS_UP_TO_DATE = StatusMessages.UP_TO_DATE
+except ImportError:
+    # 如果 constants 模块不存在，使用默认值
+    ERROR_PATH_NOT_EXIST = "error: 路径不存在"
+    ERROR_NOT_DIRECTORY = "error: 路径不是目录"
+    ERROR_NOT_GIT_REPO = "error: 不是 Git 仓库"
+    ERROR_CHECK_FAILED = "error: 检查更新失败"
+    ERROR_PULL_FAILED = "error: 拉取更新失败"
+    STATUS_UP_TO_DATE = "Already up to date."
 
 
 def print_header():
