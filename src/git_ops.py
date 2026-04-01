@@ -202,6 +202,12 @@ def check_repo_update(repo_path):
             return None
             
         current_branch = branch_result.stdout.strip()
+        
+        # 检查是否处于 detached HEAD 状态
+        if current_branch == 'HEAD':
+            logger.warning("处于 detached HEAD 状态，无法确定当前分支")
+            return None
+        
         logger.debug(f"当前分支: {current_branch}")
         
         # 步骤3: 确定远程分支名称

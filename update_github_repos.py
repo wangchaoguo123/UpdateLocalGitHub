@@ -52,15 +52,17 @@ try:
     ERROR_NOT_GIT_REPO = ErrorMessages.NOT_GIT_REPO
     ERROR_CHECK_FAILED = ErrorMessages.CHECK_FAILED
     ERROR_PULL_FAILED = ErrorMessages.PULL_FAILED
+    ERROR_PATH_NOT_SAFE = ErrorMessages.PATH_NOT_SAFE
     STATUS_UP_TO_DATE = StatusMessages.UP_TO_DATE
 except ImportError:
     # 如果 constants 模块不存在，使用默认值
-    ERROR_PATH_NOT_EXIST = "error: 路径不存在"
-    ERROR_NOT_DIRECTORY = "error: 路径不是目录"
-    ERROR_NOT_GIT_REPO = "error: 不是 Git 仓库"
-    ERROR_CHECK_FAILED = "error: 检查更新失败"
-    ERROR_PULL_FAILED = "error: 拉取更新失败"
-    STATUS_UP_TO_DATE = "Already up to date."
+    ERROR_PATH_NOT_EXIST = "路径不存在"
+    ERROR_NOT_DIRECTORY = "路径不是目录"
+    ERROR_NOT_GIT_REPO = "不是 Git 仓库"
+    ERROR_CHECK_FAILED = "检查更新失败"
+    ERROR_PULL_FAILED = "拉取更新失败"
+    ERROR_PATH_NOT_SAFE = "路径不安全"
+    STATUS_UP_TO_DATE = "已是最新"
 
 
 def print_header():
@@ -76,11 +78,27 @@ def get_csv_filename():
     生成 CSV 文件名
 
     文件名格式：result_YYYYMMDD.csv
+    同时验证当前目录是否可写
 
     返回值:
         CSV 文件名（字符串）
+    
+    异常:
+        IOError: 当前目录不可写时抛出
     """
-    return f"result_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"result_{datetime.now().strftime('%Y%m%d')}.csv"
+    
+    # 验证当前目录是否可写
+    try:
+        test_path = os.path.join(os.getcwd(), '.test_write')
+        with open(test_path, 'w') as f:
+            f.write('test')
+        os.remove(test_path)
+    except (IOError, OSError) as e:
+        logger.error(f"当前目录不可写: {os.getcwd()}")
+        raise IOError(f"当前目录不可写，请检查权限: {os.getcwd()}") from e
+    
+    return filename
 
 
 def process_repo(repo_path, csv_path, index, total):
