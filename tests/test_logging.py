@@ -100,16 +100,26 @@ def test_check_repo_update_empty_output(tmp_path, monkeypatch):
     git_dir.mkdir()
 
     def mock_run(*args, **kwargs):
-        return subprocess.CompletedProcess(
-            args=args[0] if args else ['git'],
-            returncode=0,
-            stdout="",
-            stderr=""
-        )
+        cmd = args[0] if args else ['git']
+        
+        if 'fetch' in cmd:
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+        elif 'rev-parse' in cmd and '--abbrev-ref' in cmd:
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="main\n", stderr="")
+        elif 'rev-parse' in cmd and '@{u}' in ' '.join(cmd):
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="abc123\n", stderr="")
+        elif 'rev-list' in cmd and '@{u}..HEAD' in ' '.join(cmd):
+            # 返回空字符串，会导致转换错误
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+        elif 'rev-list' in cmd and 'HEAD..@{u}' in ' '.join(cmd):
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
+        else:
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, 'run', mock_run)
     result = check_repo_update(str(tmp_path))
-    assert result == False
+    # 当 rev-list 返回空字符串时，会抛出异常，返回 None
+    assert result is None
 
 
 def test_check_repo_update_generic_exception(tmp_path, monkeypatch):

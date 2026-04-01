@@ -1,11 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
 
-echo =====================================
-echo   GitHub Repository Update Tool
-echo =====================================
-echo.
-
 if "%~1"=="" (
     echo Error: Please provide at least one repository path
     echo.

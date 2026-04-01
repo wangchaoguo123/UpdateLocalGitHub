@@ -9,13 +9,29 @@ def test_check_repo_update_has_update(tmp_path, monkeypatch):
     git_dir = tmp_path / ".git"
     git_dir.mkdir()
 
+    call_count = [0]
+    
     def mock_run(*args, **kwargs):
-        return subprocess.CompletedProcess(
-            args[0] if args else ['git'],
-            returncode=0,
-            stdout="From https://github.com/user/repo\n * branch            main       -> FETCH_HEAD\nUpdating abc123..def456",
-            stderr=""
-        )
+        call_count[0] += 1
+        cmd = args[0] if args else ['git']
+        
+        if 'fetch' in cmd:
+            # fetch 成功
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+        elif 'rev-parse' in cmd and '--abbrev-ref' in cmd:
+            # 返回当前分支
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="main\n", stderr="")
+        elif 'rev-parse' in cmd and '@{u}' in ' '.join(cmd):
+            # 有上游分支
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="abc123\n", stderr="")
+        elif 'rev-list' in cmd and '@{u}..HEAD' in ' '.join(cmd):
+            # 本地落后 3 个提交
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="3\n", stderr="")
+        elif 'rev-list' in cmd and 'HEAD..@{u}' in ' '.join(cmd):
+            # 本地没有领先
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
+        else:
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, 'run', mock_run)
 
@@ -28,12 +44,21 @@ def test_check_repo_update_no_update(tmp_path, monkeypatch):
     git_dir.mkdir()
 
     def mock_run(*args, **kwargs):
-        return subprocess.CompletedProcess(
-            args[0] if args else ['git'],
-            returncode=0,
-            stdout="Already up to date.",
-            stderr=""
-        )
+        cmd = args[0] if args else ['git']
+        
+        if 'fetch' in cmd:
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+        elif 'rev-parse' in cmd and '--abbrev-ref' in cmd:
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="main\n", stderr="")
+        elif 'rev-parse' in cmd and '@{u}' in ' '.join(cmd):
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="abc123\n", stderr="")
+        elif 'rev-list' in cmd and '@{u}..HEAD' in ' '.join(cmd):
+            # 本地没有落后
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
+        elif 'rev-list' in cmd and 'HEAD..@{u}' in ' '.join(cmd):
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
+        else:
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, 'run', mock_run)
 

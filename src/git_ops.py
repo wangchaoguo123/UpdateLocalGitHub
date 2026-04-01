@@ -78,7 +78,7 @@ def check_repo_update(repo_path):
     """
     检查仓库是否有新更新
 
-    执行 git pull --dry-run 命令检查远程是否有新提交。
+    使用 git fetch 获取远程更新，然后比较本地和远程分支的差异。
 
     参数:
         repo_path: 仓库路径（字符串）
@@ -95,34 +95,92 @@ def check_repo_update(repo_path):
         return None
 
     try:
-        cmd = ['git', 'pull', '--dry-run']
-        result = subprocess.run(
-            cmd,
-            cwd=safe_path,  # 使用安全路径
+        # 步骤1: 获取远程更新
+        fetch_cmd = ['git', 'fetch', '--prune']
+        fetch_result = subprocess.run(
+            fetch_cmd,
+            cwd=safe_path,
             capture_output=True,
             text=True,
-            timeout=30  # 添加超时防止挂起
+            timeout=30
         )
-
-        # 检查返回码
-        if result.returncode != 0:
-            # 分析错误原因
-            error_info = analyze_git_error(result)
-            logger.warning(f"git pull --dry-run 返回错误码 {result.returncode}: {error_info}")
+        
+        if fetch_result.returncode != 0:
+            error_info = analyze_git_error(fetch_result)
+            logger.warning(f"git fetch 返回错误码 {fetch_result.returncode}: {error_info}")
             return None
 
-        # 解析输出判断更新状态
-        output = result.stdout.lower()
-
-        if 'already up to date' in output:
+        # 步骤2: 获取当前分支名称
+        branch_cmd = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
+        branch_result = subprocess.run(
+            branch_cmd,
+            cwd=safe_path,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if branch_result.returncode != 0:
+            logger.warning("无法获取当前分支名称")
+            return None
+            
+        current_branch = branch_result.stdout.strip()
+        
+        # 步骤3: 检查是否有上游分支
+        upstream_cmd = ['git', 'rev-parse', '--verify', '@{u}']
+        upstream_result = subprocess.run(
+            upstream_cmd,
+            cwd=safe_path,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if upstream_result.returncode != 0:
+            # 没有设置上游分支，尝试使用 origin/分支名
+            remote_branch = f'origin/{current_branch}'
+            check_cmd = ['git', 'rev-list', '--count', f'{remote_branch}..HEAD']
+        else:
+            # 有上游分支，检查本地落后多少
+            check_cmd = ['git', 'rev-list', '--count', '@{u}..HEAD']
+        
+        # 步骤4: 检查本地是否落后于远程
+        check_result = subprocess.run(
+            check_cmd,
+            cwd=safe_path,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if check_result.returncode != 0:
+            # 如果检查失败，可能是远程分支不存在
+            logger.info(f"无法比较本地和远程分支，可能远程分支不存在")
             return False
-        elif 'fatal' in output or 'error' in output:
-            logger.warning(f"Git 命令返回错误: {result.stdout}")
-            return None
-        elif output.strip():
-            # 有输出内容且无错误，表示有更新
+            
+        # 如果本地落后的提交数为0，表示没有更新
+        behind_count = int(check_result.stdout.strip())
+        
+        # 步骤5: 检查本地是否领先于远程
+        ahead_cmd = ['git', 'rev-list', '--count', 'HEAD..@{u}'] if upstream_result.returncode == 0 else ['git', 'rev-list', '--count', f'HEAD..origin/{current_branch}']
+        ahead_result = subprocess.run(
+            ahead_cmd,
+            cwd=safe_path,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        ahead_count = 0
+        if ahead_result.returncode == 0:
+            ahead_count = int(ahead_result.stdout.strip())
+        
+        # 如果本地落后于远程（behind_count > 0），表示有更新
+        if behind_count > 0:
+            logger.info(f"本地落后远程 {behind_count} 个提交")
             return True
         else:
+            logger.info("本地已是最新")
             return False
 
     except subprocess.TimeoutExpired:
