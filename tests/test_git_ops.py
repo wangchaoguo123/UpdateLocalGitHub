@@ -24,10 +24,10 @@ def test_check_repo_update_has_update(tmp_path, monkeypatch):
         elif 'rev-parse' in cmd and 'origin/' in ' '.join(cmd):
             # 验证远程分支存在
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="origin/main\n", stderr="")
-        elif 'rev-list' in cmd and 'origin/main..HEAD' in ' '.join(cmd):
+        elif 'rev-list' in cmd and 'HEAD..origin/main' in ' '.join(cmd):
             # 本地落后 3 个提交
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="3\n", stderr="")
-        elif 'rev-list' in cmd and 'HEAD..origin/main' in ' '.join(cmd):
+        elif 'rev-list' in cmd and 'origin/main..HEAD' in ' '.join(cmd):
             # 本地没有领先
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
         elif 'log' in cmd:
@@ -57,10 +57,10 @@ def test_check_repo_update_no_update(tmp_path, monkeypatch):
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="origin/main\n", stderr="")
         elif 'rev-parse' in cmd and 'origin/' in ' '.join(cmd):
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="origin/main\n", stderr="")
-        elif 'rev-list' in cmd and 'origin/main..HEAD' in ' '.join(cmd):
+        elif 'rev-list' in cmd and 'HEAD..origin/main' in ' '.join(cmd):
             # 本地没有落后
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
-        elif 'rev-list' in cmd and 'HEAD..origin/main' in ' '.join(cmd):
+        elif 'rev-list' in cmd and 'origin/main..HEAD' in ' '.join(cmd):
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
         else:
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")

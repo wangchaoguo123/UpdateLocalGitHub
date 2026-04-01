@@ -184,7 +184,8 @@ def check_repo_update(repo_path):
                     return False
         
         # 步骤5: 检查本地是否落后于远程
-        check_cmd = ['git', 'rev-list', '--count', f'{remote_branch}..HEAD']
+        # git rev-list HEAD..remote_branch: 显示在 HEAD 中但不在 remote_branch 中的提交（本地落后远程）
+        check_cmd = ['git', 'rev-list', '--count', f'HEAD..{remote_branch}']
         check_result = subprocess.run(
             check_cmd,
             cwd=safe_path,
@@ -201,7 +202,8 @@ def check_repo_update(repo_path):
         logger.debug(f"本地落后远程 {behind_count} 个提交")
         
         # 步骤6: 检查远程是否落后于本地（可选信息）
-        ahead_cmd = ['git', 'rev-list', '--count', f'HEAD..{remote_branch}']
+        # git rev-list remote_branch..HEAD: 显示在 remote_branch 中但不在 HEAD 中的提交（本地领先远程）
+        ahead_cmd = ['git', 'rev-list', '--count', f'{remote_branch}..HEAD']
         ahead_result = subprocess.run(
             ahead_cmd,
             cwd=safe_path,
