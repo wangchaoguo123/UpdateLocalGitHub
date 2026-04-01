@@ -33,8 +33,12 @@ def analyze_git_error(result):
         error_parts.append("不是 Git 仓库")
     elif 'permission denied' in stderr:
         error_parts.append("权限被拒绝")
-    elif 'connection refused' in stderr or 'could not resolve host' in stderr:
-        error_parts.append("无法连接到远程仓库")
+    elif ('connection refused' in stderr or 
+          'could not resolve host' in stderr or 
+          'failed to connect' in stderr or
+          'could not connect to server' in stderr or
+          'unable to access' in stderr and 'https' in stderr):
+        error_parts.append("网络连接失败，请检查网络连接或代理设置")
     elif 'local changes' in stderr or 'uncommitted changes' in stderr:
         error_parts.append("本地有未提交的更改")
     elif 'conflict' in stderr or 'merge conflict' in stderr:
