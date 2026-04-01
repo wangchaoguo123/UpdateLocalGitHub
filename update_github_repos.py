@@ -17,11 +17,16 @@ import os
 import logging
 from datetime import datetime
 
-# 设置标准输出编码为 UTF-8，确保中文正确显示
-try:
-    sys.stdout.reconfigure(encoding='utf-8')
-except:
-    pass
+# 设置标准输出编码，确保中文正确显示
+# 只在直接运行时重新包装输出，测试时保持原样
+import io
+if __name__ == '__main__':
+    try:
+        # 尝试使用 UTF-8
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except:
+        pass
 
 # 配置日志
 logging.basicConfig(
