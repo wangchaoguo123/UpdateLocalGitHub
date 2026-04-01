@@ -9,10 +9,7 @@ def test_check_repo_update_has_update(tmp_path, monkeypatch):
     git_dir = tmp_path / ".git"
     git_dir.mkdir()
 
-    call_count = [0]
-    
     def mock_run(*args, **kwargs):
-        call_count[0] += 1
         cmd = args[0] if args else ['git']
         
         if 'fetch' in cmd:
@@ -23,13 +20,19 @@ def test_check_repo_update_has_update(tmp_path, monkeypatch):
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="main\n", stderr="")
         elif 'rev-parse' in cmd and '@{u}' in ' '.join(cmd):
             # 有上游分支
-            return subprocess.CompletedProcess(cmd, returncode=0, stdout="abc123\n", stderr="")
-        elif 'rev-list' in cmd and '@{u}..HEAD' in ' '.join(cmd):
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="origin/main\n", stderr="")
+        elif 'rev-parse' in cmd and 'origin/' in ' '.join(cmd):
+            # 验证远程分支存在
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="origin/main\n", stderr="")
+        elif 'rev-list' in cmd and 'origin/main..HEAD' in ' '.join(cmd):
             # 本地落后 3 个提交
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="3\n", stderr="")
-        elif 'rev-list' in cmd and 'HEAD..@{u}' in ' '.join(cmd):
+        elif 'rev-list' in cmd and 'HEAD..origin/main' in ' '.join(cmd):
             # 本地没有领先
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
+        elif 'log' in cmd:
+            # 返回日志信息
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="abc123 Update file1\n", stderr="")
         else:
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
 
@@ -51,11 +54,13 @@ def test_check_repo_update_no_update(tmp_path, monkeypatch):
         elif 'rev-parse' in cmd and '--abbrev-ref' in cmd:
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="main\n", stderr="")
         elif 'rev-parse' in cmd and '@{u}' in ' '.join(cmd):
-            return subprocess.CompletedProcess(cmd, returncode=0, stdout="abc123\n", stderr="")
-        elif 'rev-list' in cmd and '@{u}..HEAD' in ' '.join(cmd):
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="origin/main\n", stderr="")
+        elif 'rev-parse' in cmd and 'origin/' in ' '.join(cmd):
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="origin/main\n", stderr="")
+        elif 'rev-list' in cmd and 'origin/main..HEAD' in ' '.join(cmd):
             # 本地没有落后
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
-        elif 'rev-list' in cmd and 'HEAD..@{u}' in ' '.join(cmd):
+        elif 'rev-list' in cmd and 'HEAD..origin/main' in ' '.join(cmd):
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="0\n", stderr="")
         else:
             return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
