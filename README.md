@@ -8,8 +8,10 @@
 - 自动拉取更新
 - 将更新历史记录到 CSV 文件
 - 详细的控制台输出和日志记录
-- **安全的路径验证**，防止命令注入攻击
+- **安全的路径验证**，防止命令注入攻击，禁止访问系统目录
 - **超时机制**，防止 Git 命令挂起
+- **网络错误检测**，提供清晰的错误提示
+- **简化更新履历**，只记录最新提交信息
 
 ## 快速开始
 
@@ -102,7 +104,8 @@ repo3,D:\repo3,2026-03-31 10:30:20,error: 不是 Git 仓库
 ## 安全特性
 
 - **路径安全验证**：自动规范化路径，防止命令注入
-- **超时机制**：Git 命令设置超时（检查 30 秒，拉取 60 秒），防止挂起
+- **系统目录保护**：禁止访问 Windows 系统目录（C:\Windows、C:\Program Files）和 Unix 系统目录（/etc、/bin 等）
+- **超时机制**：Git 命令设置超时（检查 60 秒，拉取 60 秒），防止挂起
 - **异常日志**：所有异常记录到 Python logging 模块
 
 ## 错误处理
@@ -136,9 +139,18 @@ repo3,D:\repo3,2026-03-31 10:30:20,error: 不是 Git 仓库
 
 | 函数 | 说明 | 参数 | 返回值 |
 |------|------|------|--------|
-| validate_path_security(repo_path) | 验证路径安全性 | repo_path: 路径字符串 | 安全路径或 None |
+| validate_path_security(repo_path) | 验证路径安全性（含系统目录检查） | repo_path: 路径字符串 | 安全路径或 None |
 | check_repo_update(repo_path) | 检查仓库是否有更新 | repo_path: 路径字符串 | True/False/None |
 | pull_repo(repo_path) | 执行 git pull 更新仓库 | repo_path: 路径字符串 | 更新信息或 None |
+| analyze_git_error(result) | 分析 Git 命令错误信息 | result: CompletedProcess 对象 | 错误描述字符串 |
+
+### src.constants
+
+| 类/常量 | 说明 | 示例 |
+|--------|------|------|
+| ErrorMessages | 错误消息常量 | PATH_NOT_EXIST, NOT_GIT_REPO |
+| StatusMessages | 状态消息常量 | UP_TO_DATE |
+| CSVConfig | CSV 配置常量 | HEADERS, FILENAME_PREFIX |
 
 ### src.csv_writer
 
@@ -170,8 +182,8 @@ pytest --cov=src --cov-report=html  # HTML 报告
 
 ### 测试覆盖率
 
-- 当前覆盖率：**96%**
-- 测试用例数：**45**
+- 当前覆盖率：**97%**
+- 测试用例数：**55**
 
 ## 项目结构
 
@@ -181,6 +193,7 @@ UpdateLocalGitHub/
 ├── update_repos.bat            # 批处理文件（Windows）
 ├── src/
 │   ├── __init__.py             # 包初始化
+│   ├── constants.py            # 常量定义模块（错误消息、配置）
 │   ├── utils.py                # 工具函数模块（路径验证、名称提取）
 │   ├── git_ops.py              # Git 操作模块（检查更新、拉取）
 │   └── csv_writer.py           # CSV 写入模块
@@ -202,6 +215,16 @@ UpdateLocalGitHub/
 - 错误处理使用 Python logging 模块
 - 中英文之间添加空格
 - 变量名、函数名使用英文
+- 常量集中管理在 `src/constants.py`
+
+## 代码质量
+
+本项目经过严格的代码审查，确保代码质量：
+
+- **安全性**：路径安全验证，防止命令注入；禁止访问系统目录
+- **健壮性**：完善的错误处理和异常捕获
+- **可维护性**：模块化设计，常量集中管理
+- **可测试性**：97% 测试覆盖率，55 个测试用例
 
 ## 许可证
 
