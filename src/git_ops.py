@@ -65,6 +65,9 @@ def validate_path_security(repo_path):
     1. 路径规范化
     2. 路径长度限制
     3. 禁止访问系统目录
+    4. 路径遍历攻击防护（检测 ..）
+    5. 符号链接解析与验证
+    6. 父目录访问权限验证
 
     参数:
         repo_path: 仓库路径（字符串）
@@ -72,15 +75,22 @@ def validate_path_security(repo_path):
     返回值:
         安全的规范化路径，如果路径不安全则返回 None
     """
-    # 规范化路径，处理相对路径和符号链接
+    # 步骤1：路径遍历攻击防护
+    # 检查路径中是否包含 .. 序列，防止通过路径遍历逃逸
+    normalized = os.path.normpath(repo_path)
+    if '..' in normalized.split(os.sep):
+        logger.warning(f"检测到路径遍历攻击: {repo_path}")
+        return None
+
+    # 步骤2：规范化路径，处理相对路径
     safe_path = os.path.normpath(os.path.abspath(repo_path))
 
-    # 检查路径长度（Windows 最大路径长度限制）
+    # 步骤3：检查路径长度（Windows 最大路径长度限制）
     if len(safe_path) > 260:
         logger.warning(f"路径过长: {safe_path}")
         return None
 
-    # 禁止访问系统目录（只检查根目录，不包括子目录）
+    # 步骤4：禁止访问系统目录（只检查根目录，不包括子目录）
     forbidden_paths = []
     
     # Windows 系统目录
@@ -101,6 +111,34 @@ def validate_path_security(repo_path):
             if safe_path_lower == forbidden or safe_path_lower.startswith(forbidden + os.sep):
                 logger.warning(f"禁止访问系统目录: {safe_path}")
                 return None
+
+    # 步骤5：符号链接安全检查
+    # 解析真实路径，防止通过符号链接逃逸到禁止目录
+    try:
+        real_path = os.path.realpath(repo_path)
+        if real_path != safe_path:
+            logger.info(f"检测到符号链接: {repo_path} -> {real_path}")
+            # 对符号链接目标进行二次安全检查
+            real_lower = real_path.lower()
+            for forbidden in forbidden_paths:
+                if forbidden:
+                    if real_lower == forbidden or real_lower.startswith(forbidden + os.sep):
+                        logger.warning(f"符号链接指向系统目录: {real_path}")
+                        return None
+    except OSError as e:
+        logger.warning(f"解析真实路径失败: {e}")
+        return None
+
+    # 步骤6：验证父目录访问权限
+    # 确保用户有权限访问仓库的父目录
+    parent_dir = os.path.dirname(safe_path)
+    if parent_dir and not os.path.exists(parent_dir):
+        logger.warning(f"父目录不存在: {parent_dir}")
+        return None
+    
+    if parent_dir and not os.access(parent_dir, os.R_OK | os.X_OK):
+        logger.warning(f"父目录权限不足: {parent_dir}")
+        return None
 
     return safe_path
 
@@ -177,7 +215,7 @@ def check_repo_update(repo_path):
             cwd=safe_path,
             capture_output=True,
             text=True,
-            timeout=60  # 增加超时时间到60秒
+            timeout=60  # 60秒超时：大型仓库网络下载可能较慢
         )
         
         if fetch_result.returncode != 0:
