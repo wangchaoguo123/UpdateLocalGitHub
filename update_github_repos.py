@@ -6,9 +6,15 @@ GitHub 仓库本地更新工具
 功能：
 - 批量检查多个仓库是否有更新
 - 自动拉取有更新的仓库
+- 扫描目录批量处理所有 Git 仓库
 - 将更新记录保存到 CSV 文件
 
 使用方法：
+    # 扫描指定目录下的所有仓库
+    python update_github_repos.py -d <目录路径>
+    python update_github_repos.py --dir <目录路径>
+
+    # 直接指定仓库路径（多个）
     python update_github_repos.py <repo_path1> [repo_path2] ...
 """
 
@@ -39,8 +45,9 @@ if __name__ == '__main__':
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from utils import validate_repo_path, extract_repo_name
-from git_ops import check_repo_update, pull_repo
+from git_ops import check_repo_update, pull_repo, scan_git_repos
 from csv_writer import log_update_result
+from config import get_exclude_dirs
 
 # 尝试导入常量模块，如果失败则使用默认值
 try:
@@ -193,29 +200,158 @@ def main(args):
     """
     # 打印标题
     print_header()
-
+    
+    # 解析命令行参数，支持两种模式：
+    # 1. -d/--dir <目录>：扫描目录下所有 Git 仓库
+    # 2. -h/--help：显示帮助信息
+    # 3. 直接指定仓库路径：处理指定的仓库列表
+    target_repos = []
+    scan_mode = False
+    preview_mode = False
+    
+    # 检查帮助参数
+    if args and args[0] in ('-h', '--help'):
+        print("使用方法：")
+        print("  # 扫描指定目录下的所有 Git 仓库（预览模式）")
+        print("  python update_github_repos.py -d <目录路径> --preview")
+        print("  python update_github_repos.py --dir <目录路径> --preview")
+        print()
+        print("  # 扫描指定目录并更新所有仓库")
+        print("  python update_github_repos.py -d <目录路径>")
+        print("  python update_github_repos.py --dir <目录路径>")
+        print()
+        print("  # 直接指定仓库路径（多个）")
+        print("  python update_github_repos.py <repo_path1> [repo_path2] ...")
+        print()
+        print("配置文件：")
+        print("  config.json - 排除目录、超时配置")
+        return 0
+    
+    # 检查是否有 --preview 参数
+    if '--preview' in args:
+        preview_mode = True
+        args = [a for a in args if a != '--preview']
+    
+    if args:
+        if args[0] in ('-d', '--dir'):
+            # 目录扫描模式
+            if len(args) < 2:
+                print("[错误] 请提供目录路径")
+                print()
+                print("使用方法：")
+                print("  python update_github_repos.py -d <目录路径>")
+                print("  python update_github_repos.py --dir <目录路径>")
+                return 1
+            
+            target_dir = args[1]
+            
+            # 检查目录是否存在
+            if not os.path.isdir(target_dir):
+                print(f"[错误] 目录不存在: {target_dir}")
+                return 1
+            
+            # 扫描目录获取仓库列表
+            exclude_dirs = get_exclude_dirs()
+            print(f"扫描目录: {target_dir}")
+            print(f"排除目录: {exclude_dirs}")
+            print()
+            
+            target_repos = scan_git_repos(target_dir, exclude_dirs)
+            scan_mode = True
+            
+            if not target_repos:
+                print("[警告] 未发现任何 Git 仓库")
+                return 0
+            
+            print(f"发现 {len(target_repos)} 个仓库")
+            print()
+        else:
+            # 直接指定仓库路径模式
+            target_repos = args
+    
     # 验证参数
-    if not args:
+    if not target_repos:
         print("[错误] 请提供至少一个仓库路径")
         print()
         print("使用方法：")
+        print("  # 扫描目录")
+        print("  python update_github_repos.py -d <目录路径>")
+        print()
+        print("  # 直接指定仓库")
         print("  python update_github_repos.py <repo_path1> [repo_path2] ...")
         return 1
 
     # 打印开始信息
-    print("开始检查仓库更新...")
+    mode_text = "扫描目录" if scan_mode else "检查仓库"
+    print(f"开始{mode_text}更新...")
     print("=" * 50)
     print()
+
+    # 预览模式：只列出需要更新的仓库，不执行更新
+    if preview_mode:
+        print("预览模式：只显示需要更新的仓库")
+        print("=" * 50)
+        print()
+        
+        repos_need_update = []
+        repos_up_to_date = []
+        repos_error = []
+        
+        for repo_path in target_repos:
+            repo_name = extract_repo_name(repo_path)
+            has_update = check_repo_update(repo_path)
+            
+            if has_update is None:
+                repos_error.append((repo_name, repo_path, "检查失败"))
+            elif has_update:
+                repos_need_update.append((repo_name, repo_path))
+            else:
+                repos_up_to_date.append((repo_name, repo_path))
+        
+        # 显示需要更新的仓库
+        print(f"需要更新的仓库 ({len(repos_need_update)} 个)：")
+        print("-" * 50)
+        for repo_name, repo_path in repos_need_update:
+            print(f"  [需更新] {repo_name}")
+            print(f"          {repo_path}")
+        print()
+        
+        # 显示已是最新仓库
+        print(f"已是最新 ({len(repos_up_to_date)} 个)：")
+        print("-" * 50)
+        for repo_name, repo_path in repos_up_to_date:
+            print(f"  [最新] {repo_name}")
+        print()
+        
+        # 显示错误仓库
+        if repos_error:
+            print(f"检查失败 ({len(repos_error)} 个)：")
+            print("-" * 50)
+            for repo_name, repo_path, error in repos_error:
+                print(f"  [错误] {repo_name}")
+                print(f"          {error}")
+            print()
+        
+        print("=" * 50)
+        print(f"总计：{len(target_repos)} 个仓库")
+        print(f"  需要更新: {len(repos_need_update)}")
+        print(f"  已是最新: {len(repos_up_to_date)}")
+        print(f"  检查失败: {len(repos_error)}")
+        print("=" * 50)
+        print()
+        print("如需更新仓库，请去掉 --preview 参数重新运行")
+        
+        return 0
 
     # 生成 CSV 文件名
     csv_path = get_csv_filename()
 
     # 初始化统计计数器
-    total = len(args)
+    total = len(target_repos)
     success = 0
 
     # 遍历处理每个仓库
-    for index, repo_path in enumerate(args, 1):
+    for index, repo_path in enumerate(target_repos, 1):
         try:
             if process_repo(repo_path, csv_path, index, total):
                 success += 1

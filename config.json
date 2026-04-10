@@ -1,0 +1,15 @@
+{
+  "exclude_dirs": [
+    "node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".idea",
+    ".vscode",
+    ".svn",
+    ".hg"
+  ],
+  "git_timeout": 10,
+  "fetch_timeout": 60,
+  "pull_timeout": 60
+}

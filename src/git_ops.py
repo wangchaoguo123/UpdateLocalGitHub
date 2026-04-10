@@ -143,6 +143,50 @@ def validate_path_security(repo_path):
     return safe_path
 
 
+def scan_git_repos(root_dir, exclude_dirs=None):
+    """
+    递归扫描目录下的所有 Git 仓库
+
+    参数:
+        root_dir: 根目录路径（字符串）
+        exclude_dirs: 排除的目录列表，默认为 None（使用配置文件）
+
+    返回值:
+        Git 仓库路径列表
+    """
+    from config import get_exclude_dirs
+    
+    if exclude_dirs is None:
+        exclude_dirs = get_exclude_dirs()
+    
+    repos = []
+    root_dir = os.path.abspath(root_dir)
+    
+    if not os.path.isdir(root_dir):
+        logger.error(f"目录不存在: {root_dir}")
+        return repos
+    
+    logger.info(f"开始扫描目录: {root_dir}")
+    logger.info(f"排除目录: {exclude_dirs}")
+    
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        # 原地修改 dirnames，实现跳过排除目录
+        # 这是 os.walk 的优化方式，避免进入不需要的目录
+        dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
+        
+        # 检查当前目录是否为 Git 仓库
+        if '.git' in dirnames or os.path.isfile(os.path.join(dirpath, '.git')):
+            # 这是一个 Git 仓库
+            repo_path = os.path.abspath(dirpath)
+            repos.append(repo_path)
+            logger.debug(f"发现仓库: {repo_path}")
+            # 不继续遍历子目录，避免重复发现
+            dirnames[:] = []
+    
+    logger.info(f"扫描完成，共发现 {len(repos)} 个仓库")
+    return repos
+
+
 def _get_remote_branch(safe_path, current_branch):
     """
     获取远程分支名称
